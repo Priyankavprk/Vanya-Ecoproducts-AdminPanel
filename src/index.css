@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+* {
+  font-family: Outfit;
+}
+
+input,textarea{
+  border:1px solid rgb(217, 250, 210);
+  outline-color: green;
+  border-radius: 4px;
+}
+
+.active {
+  background-color: rgb(217, 250, 210);
+  border-color: green;
+}
+
+
+input::placeholder {
+  color: rgba(37, 140, 66, 0.69);
+}
+textarea::placeholder {
+  color: rgba(37, 140, 66, 0.69);
+}
