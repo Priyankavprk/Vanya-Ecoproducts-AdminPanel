@@ -47,7 +47,14 @@ function List({ token }) {
       formData.append('description', editingProduct.description);
       formData.append('mainDescription', editingProduct.mainDescription);
       formData.append('bestseller', editingProduct.bestseller);
-      formData.append('quantityOptions', JSON.stringify(editingProduct.quantityOptions));
+      const normalizedQuantityOptions = editingProduct.quantityOptions.map((opt) => {
+        const entry = { label: opt.label, price: Number(opt.price) };
+        if (opt.originalPrice !== '' && opt.originalPrice != null) {
+          entry.originalPrice = Number(opt.originalPrice);
+        }
+        return entry;
+      });
+      formData.append('quantityOptions', JSON.stringify(normalizedQuantityOptions));
 
       // append new images (if any)
       editingProduct.image1 && formData.append('image1', editingProduct.image1);
@@ -81,22 +88,28 @@ function List({ token }) {
     <>
       <p className="mb-2 font-bold">All Products List</p>
       <div className="flex flex-col gap-2">
-        <div className="hidden md:grid grid-cols-[1fr_3fr_1fr_1fr_1fr] items-center py-1 px-2 border bg-gray-100 text-sm">
+        <div className="hidden md:grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr] items-center py-1 px-2 border bg-gray-100 text-sm">
           <b className="text-left">Image</b>
           <b className="text-left">Name</b>
-          <b className="text-center">Price</b>
+          <b className="text-center">Selling</b>
+          <b className="text-center">Sourced</b>
           <b className="text-center">Actions</b>
         </div>
 
         {list.reverse().map((item, index) => (
           <div
-            className="grid grid-cols-[1fr_3fr_1fr_1fr_1fr] items-center gap-2 py-1 px-2 border text-sm"
+            className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr] items-center gap-2 py-1 px-2 border text-sm"
             key={index}
           >
             <img className="w-12" src={item.image[0]} alt={item.name} />
             <p>{item.name}</p>
             <p className="text-center font-medium">
-              {currency} {item.quantityOptions?.[0]?.price || 'N/A'}
+              {currency} {item.quantityOptions?.[0]?.price ?? 'N/A'}
+            </p>
+            <p className="text-center font-medium text-gray-700">
+              {item.quantityOptions?.[0]?.originalPrice != null
+                ? `${currency} ${item.quantityOptions[0].originalPrice}`
+                : '—'}
             </p>
             <p
               onClick={() => removeProduct(item._id)}
@@ -105,7 +118,15 @@ function List({ token }) {
               X
             </p>
             <p
-              onClick={() => setEditingProduct({ ...item })}
+              onClick={() =>
+                setEditingProduct({
+                  ...item,
+                  quantityOptions: (item.quantityOptions || []).map((opt) => ({
+                    ...opt,
+                    originalPrice: opt.originalPrice ?? '',
+                  })),
+                })
+              }
               className="text-center cursor-pointer text-blue-600 font-bold"
             >
               ✏️
@@ -136,7 +157,7 @@ function List({ token }) {
             </div>
 
             {/* Description */}
-            <div className="mb-4">
+            {/* <div className="mb-4">
               <p className="mb-2">Product description (S)</p>
               <textarea
                 value={editingProduct.description}
@@ -144,10 +165,10 @@ function List({ token }) {
                 className="w-full px-3 py-2 border rounded"
                 required
               />
-            </div>
+            </div> */}
 
             {/* Main Description */}
-            <div className="mb-4">
+            {/* <div className="mb-4">
               <p className="mb-2">Product description (L)</p>
               <textarea
                 value={editingProduct.mainDescription}
@@ -155,13 +176,13 @@ function List({ token }) {
                 className="w-full px-3 py-2 border rounded"
                 required
               />
-            </div>
+            </div> */}
 
             {/* Quantity Options */}
             <div className="mb-4">
               <p className="mb-2">Quantity Options</p>
               {editingProduct.quantityOptions.map((opt, i) => (
-                <div key={i} className="flex gap-2 mb-2">
+                <div key={i} className="flex flex-wrap gap-2 mb-2 items-center">
                   <input
                     type="text"
                     value={opt.label}
@@ -182,9 +203,24 @@ function List({ token }) {
                       updated[i].price = e.target.value;
                       setEditingProduct({ ...editingProduct, quantityOptions: updated });
                     }}
-                    className="px-3 py-2 w-[120px] border rounded"
-                    placeholder="₹ Price"
+                    className="px-3 py-2 w-[130px] border rounded"
+                    placeholder="₹ Selling price"
+                    min="0"
+                    step="0.01"
                     required
+                  />
+                  <input
+                    type="number"
+                    value={opt.originalPrice ?? ''}
+                    onChange={(e) => {
+                      const updated = [...editingProduct.quantityOptions];
+                      updated[i].originalPrice = e.target.value;
+                      setEditingProduct({ ...editingProduct, quantityOptions: updated });
+                    }}
+                    className="px-3 py-2 w-[130px] border rounded"
+                    placeholder="₹ Sourced price"
+                    min="0"
+                    step="0.01"
                   />
                   {i > 0 && (
                     <button
@@ -205,7 +241,7 @@ function List({ token }) {
                 onClick={() =>
                   setEditingProduct({
                     ...editingProduct,
-                    quantityOptions: [...editingProduct.quantityOptions, { label: '', price: '' }]
+                    quantityOptions: [...editingProduct.quantityOptions, { label: '', price: '', originalPrice: '' }]
                   })
                 }
                 className="text-green-800 text-sm"
@@ -228,7 +264,7 @@ function List({ token }) {
             </div>
 
             {/* Images */}
-            <div className="mb-6">
+            {/* <div className="mb-6">
               <p className="mb-2">Update Images (optional)</p>
               <div className="flex gap-2">
                 {[1, 2, 3, 4].map((num) => (
@@ -253,7 +289,7 @@ function List({ token }) {
                   </label>
                 ))}
               </div>
-            </div>
+            </div> */}
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-3">

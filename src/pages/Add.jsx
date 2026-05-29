@@ -14,7 +14,7 @@ function Add({ token }) {
   const [description, setDescription] = useState('')
   const [mainDescription, setMainDescription] = useState('')
   const [bestseller, setBestseller] = useState(false)
-  const [quantityOptions, setQuantityOptions] = useState([{ label: '', price: '' }])
+  const [quantityOptions, setQuantityOptions] = useState([{ label: '', price: '', originalPrice: '' }])
 
   const onSubmitHandler = async (e) => {
     e.preventDefault()
@@ -22,28 +22,35 @@ function Add({ token }) {
       const formData = new FormData()
 
       formData.append("name", name)
-      formData.append("description", description)
-      formData.append("mainDescription", mainDescription)
+      // formData.append("description", description)
+      // formData.append("mainDescription", mainDescription)
       formData.append("bestseller", bestseller)
-      formData.append("quantityOptions", JSON.stringify(quantityOptions))
+      const normalizedQuantityOptions = quantityOptions.map((opt) => {
+        const entry = { label: opt.label, price: Number(opt.price) }
+        if (opt.originalPrice !== '' && opt.originalPrice != null) {
+          entry.originalPrice = Number(opt.originalPrice)
+        }
+        return entry
+      })
+      formData.append("quantityOptions", JSON.stringify(normalizedQuantityOptions))
 
-      image1 && formData.append("image1", image1)
-      image2 && formData.append("image2", image2)
-      image3 && formData.append("image3", image3)
-      image4 && formData.append("image4", image4)
+      // image1 && formData.append("image1", image1)
+      // image2 && formData.append("image2", image2)
+      // image3 && formData.append("image3", image3)
+      // image4 && formData.append("image4", image4)
 
       const response = await axios.post(backendUrl + "/api/product/add", formData, { headers: { token } })
       if (response.data.success) {
         toast.success(response.data.message)
         setName('')
-        setDescription('')
-        setMainDescription('')
+        // setDescription('')
+        // setMainDescription('')
         setBestseller(false)
-        setQuantityOptions([{ label: '', price: '' }])
-        setImage1(false)
-        setImage2(false)
-        setImage3(false)
-        setImage4(false)
+        setQuantityOptions([{ label: '', price: '', originalPrice: '' }])
+        // setImage1(false)
+        // setImage2(false)
+        // setImage3(false)
+        // setImage4(false)
       } else {
         toast.error(response.data.message)
       }
@@ -54,7 +61,8 @@ function Add({ token }) {
 
   return (
     <form onSubmit={onSubmitHandler} className='flex flex-col w-full items-start gap-3 border-1 shadow px-10 py-10 bg-slate-50'>
-      <div>
+      {/* upload image */}
+      {/* <div>
         <p className='mb-2'>Upload Image</p>
         <div className='flex gap-2'>
           {[image1, image2, image3, image4].map((img, idx) => (
@@ -64,27 +72,27 @@ function Add({ token }) {
             </label>
           ))}
         </div>
-      </div>
+      </div> */}
 
       <div className='w-full'>
         <p className='mb-2'>Product name</p>
         <input onChange={(e) => setName(e.target.value)} value={name} type="text" placeholder='Type here' required className='w-full max-w-[500px] px-3 py-2' />
       </div>
-
+{/* 
       <div className='w-full'>
         <p className='mb-2'>Product description (S)</p>
         <textarea onChange={(e) => setDescription(e.target.value)} value={description} placeholder='Write content here' required className='w-full max-w-[500px] px-3 py-2' />
-      </div>
+      </div> */}
 
-      <div className='w-full'>
+      {/* <div className='w-full'>
         <p className='mb-2'>Product description (L)</p>
         <textarea onChange={(e) => setMainDescription(e.target.value)} value={mainDescription} placeholder='Write content here' required className='w-full max-w-[500px] px-3 py-2' />
-      </div>
+      </div> */}
 
       <div className='w-full'>
         <p className='mb-2'>Quantity Options</p>
         {quantityOptions.map((option, index) => (
-          <div key={index} className='flex gap-2 mb-2'>
+          <div key={index} className='flex flex-wrap gap-2 mb-2 items-center'>
             <input
               type="text"
               placeholder="e.g. 500g"
@@ -99,15 +107,30 @@ function Add({ token }) {
             />
             <input
               type="number"
-              placeholder="₹ Price"
+              placeholder="₹ Selling price"
               value={option.price}
               onChange={(e) => {
                 const updated = [...quantityOptions];
                 updated[index].price = e.target.value;
                 setQuantityOptions(updated);
               }}
-              className='px-3 py-2 w-[120px]'
+              className='px-3 py-2 w-[130px]'
+              min="0"
+              step="0.01"
               required
+            />
+            <input
+              type="number"
+              placeholder="₹ Sourced price"
+              value={option.originalPrice ?? ''}
+              onChange={(e) => {
+                const updated = [...quantityOptions];
+                updated[index].originalPrice = e.target.value;
+                setQuantityOptions(updated);
+              }}
+              className='px-3 py-2 w-[130px]'
+              min="0"
+              step="0.01"
             />
             {index > 0 && (
               <button type='button' onClick={() => {
@@ -117,7 +140,7 @@ function Add({ token }) {
             )}
           </div>
         ))}
-        <button type='button' className='text-green-800 text-sm' onClick={() => setQuantityOptions([...quantityOptions, { label: '', price: '' }])}>+ Add More Options</button>
+        <button type='button' className='text-green-800 text-sm' onClick={() => setQuantityOptions([...quantityOptions, { label: '', price: '', originalPrice: '' }])}>+ Add More Options</button>
       </div>
 
       <div className='flex gap-2 mt-2'>
