@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import Navbar from './components/Navbar'
 import Sidebar from './components/Sidebar'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import Add from './pages/Add'
 import List from './pages/List'
 import Orders from './pages/Orders'
+import SalesHistory from './pages/SalesHistory'
 import Login from './components/Login'
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -29,13 +30,15 @@ function App() {
           : <>
             <Navbar setToken={setToken} />
             <hr />
-            <div className='flex w-full'>
+            <div className='flex w-full min-w-0'>
               <Sidebar />
-              <div className='w-70% mx-auto ml-[max(5vw,25px)] my-8 text-green-800 text-base'>
+              <div className='flex-1 min-w-0 mx-auto ml-[max(5vw,25px)] mr-4 my-8 text-green-800 text-base'>
                 <Routes>
+                  <Route path='/' element={<Navigate to='/orders' replace />} />
                   <Route path='/add' element={<Add token={token} />} />
                   <Route path='/list' element={<List token={token} />} />
                   <Route path='/orders' element={<Orders token={token} />} />
+                  <Route path='/sales-history' element={<SalesHistory token={token} />} />
                 </Routes>
               </div>
             </div>
