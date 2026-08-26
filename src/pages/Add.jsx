@@ -23,7 +23,7 @@ function Add({ token }) {
 
       formData.append("name", name)
       // formData.append("description", description)
-      // formData.append("mainDescription", mainDescription)
+      formData.append("mainDescription", mainDescription)
       formData.append("bestseller", bestseller)
       const normalizedQuantityOptions = quantityOptions.map((opt) => {
         const entry = { label: opt.label, price: Number(opt.price) }
@@ -44,7 +44,7 @@ function Add({ token }) {
         toast.success(response.data.message)
         setName('')
         // setDescription('')
-        // setMainDescription('')
+        setMainDescription('')
         setBestseller(false)
         setQuantityOptions([{ label: '', price: '', originalPrice: '' }])
         // setImage1(false)
@@ -84,10 +84,10 @@ function Add({ token }) {
         <textarea onChange={(e) => setDescription(e.target.value)} value={description} placeholder='Write content here' required className='w-full max-w-[500px] px-3 py-2' />
       </div> */}
 
-      {/* <div className='w-full'>
+      <div className='w-full'>
         <p className='mb-2'>Product description (L)</p>
-        <textarea onChange={(e) => setMainDescription(e.target.value)} value={mainDescription} placeholder='Write content here' required className='w-full max-w-[500px] px-3 py-2' />
-      </div> */}
+        <textarea onChange={(e) => setMainDescription(e.target.value)} value={mainDescription} placeholder='Write content here' className='w-full max-w-[500px] px-3 py-2' />
+      </div>
 
       <div className='w-full'>
         <p className='mb-2'>Quantity Options</p>
