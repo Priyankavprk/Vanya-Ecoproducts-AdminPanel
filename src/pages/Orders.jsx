@@ -19,7 +19,32 @@ import {
  * GET /api/invoice/admin/sales?period=...  (period: today|week|month|year|all; backend also accepts POST + body)
  * GET /api/invoice/admin/search?query=...
  * GET /api/invoice/admin/:id
+ * POST /api/invoice/admin/update/:id
+ * POST /api/invoice/admin/delete  body: { id }
  */
+
+function invoiceToEditForm(inv) {
+  const items = getInvoiceItems(inv).map((item) => ({
+    name: item.name ?? item.productName ?? item.title ?? '',
+    quantity: item.quantity ?? item.qty ?? 1,
+    price: item.price ?? '',
+    originalPrice: item.originalPrice ?? '',
+    displayQuantity: item.displayQuantity ?? item.quantityLabel ?? item.label ?? '',
+  }));
+  return {
+    _id: inv._id,
+    invoiceId: inv.invoiceId ?? getInvoiceId(inv),
+    flatName: inv.flatName ?? '',
+    flatNumber: inv.flatNumber ?? '',
+    customerName: getCustomerName(inv),
+    mobile: inv.mobile ?? '',
+    email: inv.email ?? '',
+    discount: inv.discount ?? 0,
+    shippingCharges: inv.shippingCharges ?? 0,
+    totalAmount: getInvoiceTotal(inv),
+    itemsOrdered: items.length ? items : [{ name: '', quantity: 1, price: '', originalPrice: '', displayQuantity: '' }],
+  };
+}
 
 const PERIODS = [
   { key: 'today', label: 'Today' },
@@ -42,6 +67,8 @@ function Orders({ token }) {
 
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchSales = useCallback(async () => {
     if (!token) return;
@@ -149,6 +176,104 @@ function Orders({ token }) {
       /* keep list payload */
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const startEditInvoice = async (inv, e) => {
+    e.stopPropagation();
+    if (!inv?._id) {
+      toast.error('Cannot edit: missing invoice id');
+      return;
+    }
+    let full = inv;
+    try {
+      const res = await axios.get(backendUrl + '/api/invoice/admin/' + inv._id, { headers: { token } });
+      if (res.data.success && res.data.invoice) full = res.data.invoice;
+    } catch {
+      /* use list payload */
+    }
+    setEditingInvoice(invoiceToEditForm(full));
+  };
+
+  const deleteInvoice = async (inv, e) => {
+    e.stopPropagation();
+    const id = inv._id;
+    if (!id) {
+      toast.error('Cannot delete: missing invoice id');
+      return;
+    }
+    const label = getInvoiceId(inv) || id;
+    if (!window.confirm(`Delete invoice ${label}? This cannot be undone.`)) return;
+    try {
+      const response = await axios.post(
+        backendUrl + '/api/invoice/admin/delete',
+        { id },
+        { headers: { token } }
+      );
+      if (response.data.success) {
+        toast.success(response.data.message || 'Invoice deleted');
+        setSales((prev) => prev.filter((s) => String(s._id) !== String(id)));
+        setSearchResults((prev) => prev.filter((s) => String(s._id) !== String(id)));
+        if (selectedInvoice && String(selectedInvoice._id) === String(id)) {
+          setSelectedInvoice(null);
+        }
+        fetchSales();
+      } else {
+        toast.error(response.data.message || 'Could not delete invoice');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingInvoice?._id) return;
+    setEditSaving(true);
+    try {
+      const itemsOrdered = editingInvoice.itemsOrdered.map((item) => {
+        const entry = {
+          name: item.name.trim(),
+          quantity: Number(item.quantity),
+          price: Number(item.price),
+        };
+        if (item.displayQuantity?.trim()) entry.displayQuantity = item.displayQuantity.trim();
+        if (item.originalPrice !== '' && item.originalPrice != null) {
+          entry.originalPrice = Number(item.originalPrice);
+        }
+        return entry;
+      });
+      const payload = {
+        invoiceId: editingInvoice.invoiceId.trim(),
+        flatName: editingInvoice.flatName.trim(),
+        flatNumber: editingInvoice.flatNumber.trim(),
+        customerName: editingInvoice.customerName.trim(),
+        mobile: editingInvoice.mobile.trim(),
+        email: editingInvoice.email.trim(),
+        itemsOrdered,
+        totalAmount: Number(editingInvoice.totalAmount),
+        discount: Number(editingInvoice.discount) || 0,
+        shippingCharges: Number(editingInvoice.shippingCharges) || 0,
+      };
+      const response = await axios.post(
+        backendUrl + '/api/invoice/admin/update/' + editingInvoice._id,
+        payload,
+        { headers: { token } }
+      );
+      if (response.data.success) {
+        toast.success(response.data.message || 'Invoice updated');
+        setEditingInvoice(null);
+        await fetchSales();
+        if (selectedInvoice && String(selectedInvoice._id) === String(editingInvoice._id)) {
+          setSelectedInvoice(response.data.invoice ?? selectedInvoice);
+        }
+      } else {
+        toast.error(response.data.message || 'Could not update invoice');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -355,6 +480,7 @@ function Orders({ token }) {
                   <th className="px-3 py-2 font-semibold">Customer</th>
                   <th className="px-3 py-2 font-semibold">Flat</th>
                   <th className="px-3 py-2 font-semibold text-right">Amount</th>
+                  <th className="px-3 py-2 font-semibold text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,6 +507,22 @@ function Orders({ token }) {
                         {currency}
                         {getInvoiceTotal(inv).toFixed(2)}
                       </td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={(e) => startEditInvoice(inv, e)}
+                          className="text-blue-600 hover:text-blue-800 font-medium mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => deleteInvoice(inv, e)}
+                          className="text-red-600 hover:text-red-800 font-medium"
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -389,6 +531,231 @@ function Orders({ token }) {
           )}
         </div>
       </div>
+
+      {editingInvoice && (
+        <div className="fixed inset-0 bg-green-50/80 z-50 flex items-center justify-center px-4">
+          <form
+            onSubmit={handleEditSubmit}
+            className="bg-white shadow-md border border-gray-200 rounded-xl w-full max-w-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] text-green-900"
+          >
+            <h2 className="text-xl font-bold mb-4 text-green-800">Edit invoice</h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div>
+                <p className="mb-1 text-sm">Invoice ID</p>
+                <input
+                  type="text"
+                  value={editingInvoice.invoiceId}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, invoiceId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  required
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm">Customer name</p>
+                <input
+                  type="text"
+                  value={editingInvoice.customerName}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, customerName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  required
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm">Flat name</p>
+                <input
+                  type="text"
+                  value={editingInvoice.flatName}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, flatName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  required
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm">Flat number</p>
+                <input
+                  type="text"
+                  value={editingInvoice.flatNumber}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, flatNumber: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm">Mobile</p>
+                <input
+                  type="text"
+                  value={editingInvoice.mobile}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, mobile: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm">Email</p>
+                <input
+                  type="email"
+                  value={editingInvoice.email}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                />
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <p className="mb-2 text-sm font-medium">Line items</p>
+              {editingInvoice.itemsOrdered.map((item, i) => (
+                <div key={i} className="flex flex-wrap gap-2 mb-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="Product name"
+                    value={item.name}
+                    onChange={(e) => {
+                      const updated = [...editingInvoice.itemsOrdered];
+                      updated[i] = { ...updated[i], name: e.target.value };
+                      setEditingInvoice({ ...editingInvoice, itemsOrdered: updated });
+                    }}
+                    className="px-3 py-2 flex-1 min-w-[140px] border border-gray-300 rounded"
+                    required
+                  />
+                  <input
+                    type="number"
+                    placeholder="Qty"
+                    value={item.quantity}
+                    min="1"
+                    step="1"
+                    onChange={(e) => {
+                      const updated = [...editingInvoice.itemsOrdered];
+                      updated[i] = { ...updated[i], quantity: e.target.value };
+                      setEditingInvoice({ ...editingInvoice, itemsOrdered: updated });
+                    }}
+                    className="px-3 py-2 w-[72px] border border-gray-300 rounded"
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Unit label"
+                    value={item.displayQuantity}
+                    onChange={(e) => {
+                      const updated = [...editingInvoice.itemsOrdered];
+                      updated[i] = { ...updated[i], displayQuantity: e.target.value };
+                      setEditingInvoice({ ...editingInvoice, itemsOrdered: updated });
+                    }}
+                    className="px-3 py-2 w-[100px] border border-gray-300 rounded"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Price"
+                    value={item.price}
+                    min="0"
+                    step="0.01"
+                    onChange={(e) => {
+                      const updated = [...editingInvoice.itemsOrdered];
+                      updated[i] = { ...updated[i], price: e.target.value };
+                      setEditingInvoice({ ...editingInvoice, itemsOrdered: updated });
+                    }}
+                    className="px-3 py-2 w-[100px] border border-gray-300 rounded"
+                    required
+                  />
+                  <input
+                    type="number"
+                    placeholder="Sourced"
+                    value={item.originalPrice}
+                    min="0"
+                    step="0.01"
+                    onChange={(e) => {
+                      const updated = [...editingInvoice.itemsOrdered];
+                      updated[i] = { ...updated[i], originalPrice: e.target.value };
+                      setEditingInvoice({ ...editingInvoice, itemsOrdered: updated });
+                    }}
+                    className="px-3 py-2 w-[100px] border border-gray-300 rounded"
+                  />
+                  {i > 0 && (
+                    <button
+                      type="button"
+                      className="text-red-600 text-sm"
+                      onClick={() => {
+                        const updated = editingInvoice.itemsOrdered.filter((_, idx) => idx !== i);
+                        setEditingInvoice({ ...editingInvoice, itemsOrdered: updated });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                className="text-green-800 text-sm"
+                onClick={() =>
+                  setEditingInvoice({
+                    ...editingInvoice,
+                    itemsOrdered: [
+                      ...editingInvoice.itemsOrdered,
+                      { name: '', quantity: 1, price: '', originalPrice: '', displayQuantity: '' },
+                    ],
+                  })
+                }
+              >
+                + Add line item
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+              <div>
+                <p className="mb-1 text-sm">Total amount</p>
+                <input
+                  type="number"
+                  value={editingInvoice.totalAmount}
+                  min="0"
+                  step="0.01"
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, totalAmount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                  required
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm">Discount</p>
+                <input
+                  type="number"
+                  value={editingInvoice.discount}
+                  min="0"
+                  step="0.01"
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, discount: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-sm">Shipping</p>
+                <input
+                  type="number"
+                  value={editingInvoice.shippingCharges}
+                  min="0"
+                  step="0.01"
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, shippingCharges: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditingInvoice(null)}
+                className="px-4 py-2 bg-gray-400 text-white rounded"
+                disabled={editSaving}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-green-800 text-white rounded disabled:opacity-60"
+                disabled={editSaving}
+              >
+                {editSaving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
