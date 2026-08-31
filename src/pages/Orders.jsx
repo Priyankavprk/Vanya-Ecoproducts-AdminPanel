@@ -69,6 +69,8 @@ function Orders({ token }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [selectedRowIds, setSelectedRowIds] = useState(() => new Set());
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   const fetchSales = useCallback(async () => {
     if (!token) return;
@@ -148,6 +150,10 @@ function Orders({ token }) {
   }, [fetchSales]);
 
   useEffect(() => {
+    setSelectedRowIds(new Set());
+  }, [salesPeriod]);
+
+  useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     const q = searchInput.trim();
     if (!q) {
@@ -195,34 +201,53 @@ function Orders({ token }) {
     setEditingInvoice(invoiceToEditForm(full));
   };
 
-  const deleteInvoice = async (inv, e) => {
-    e.stopPropagation();
-    const id = inv._id;
-    if (!id) {
-      toast.error('Cannot delete: missing invoice id');
+  const deleteSelectedInvoices = async () => {
+    const ids = [...selectedRowIds];
+    if (!ids.length) {
+      toast.info('Select at least one invoice to delete.');
       return;
     }
-    const label = getInvoiceId(inv) || id;
-    if (!window.confirm(`Delete invoice ${label}? This cannot be undone.`)) return;
+    if (
+      !window.confirm(
+        `Delete ${ids.length} selected invoice${ids.length === 1 ? '' : 's'}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeleteSaving(true);
     try {
-      const response = await axios.post(
-        backendUrl + '/api/invoice/admin/delete',
-        { id },
-        { headers: { token } }
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          axios.post(backendUrl + '/api/invoice/admin/delete', { id }, { headers: { token } })
+        )
       );
-      if (response.data.success) {
-        toast.success(response.data.message || 'Invoice deleted');
-        setSales((prev) => prev.filter((s) => String(s._id) !== String(id)));
-        setSearchResults((prev) => prev.filter((s) => String(s._id) !== String(id)));
-        if (selectedInvoice && String(selectedInvoice._id) === String(id)) {
+      const deletedIds = results
+        .map((result, i) =>
+          result.status === 'fulfilled' && result.value.data.success ? ids[i] : null
+        )
+        .filter(Boolean);
+      const failed = ids.length - deletedIds.length;
+
+      if (deletedIds.length) {
+        const deletedSet = new Set(deletedIds);
+        toast.success(
+          `Deleted ${deletedIds.length} invoice${deletedIds.length === 1 ? '' : 's'}.`
+        );
+        setSales((prev) => prev.filter((s) => !deletedSet.has(String(s._id))));
+        setSearchResults((prev) => prev.filter((s) => !deletedSet.has(String(s._id))));
+        if (selectedInvoice && deletedSet.has(String(selectedInvoice._id))) {
           setSelectedInvoice(null);
         }
+        setSelectedRowIds(new Set());
         fetchSales();
-      } else {
-        toast.error(response.data.message || 'Could not delete invoice');
+      }
+      if (failed) {
+        toast.error(`Could not delete ${failed} invoice${failed === 1 ? '' : 's'}.`);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || error.message);
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -285,6 +310,38 @@ function Orders({ token }) {
     const total = sales.reduce((acc, inv) => acc + getInvoiceTotal(inv), 0);
     return { count, total };
   }, [sales, summary]);
+
+  const selectableSales = useMemo(
+    () => sales.filter((inv) => inv._id),
+    [sales]
+  );
+
+  const allRowsSelected = useMemo(
+    () =>
+      selectableSales.length > 0 &&
+      selectableSales.every((inv) => selectedRowIds.has(String(inv._id))),
+    [selectableSales, selectedRowIds]
+  );
+
+  const toggleRowSelection = (id, e) => {
+    e.stopPropagation();
+    const key = String(id);
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (e) => {
+    e.stopPropagation();
+    if (allRowsSelected) {
+      setSelectedRowIds(new Set());
+      return;
+    }
+    setSelectedRowIds(new Set(selectableSales.map((inv) => String(inv._id))));
+  };
 
   const formatWhen = (inv) => {
     const d = getInvoiceDate(inv);
@@ -454,6 +511,16 @@ function Orders({ token }) {
               {label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={deleteSelectedInvoices}
+            disabled={selectedRowIds.size === 0 || deleteSaving}
+            className="ml-auto px-3 py-1.5 rounded-full text-sm border border-red-300 text-red-700 bg-white hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {deleteSaving
+              ? 'Deleting…'
+              : `Delete selected${selectedRowIds.size ? ` (${selectedRowIds.size})` : ''}`}
+          </button>
         </div>
         <p className="text-sm text-green-900/90 mb-3">
           {salesTotals.count} invoice{salesTotals.count === 1 ? '' : 's'} ·{' '}
@@ -475,12 +542,22 @@ function Orders({ token }) {
             <table className="w-full text-sm text-left text-green-900 min-w-[640px]">
               <thead className="bg-gray-100 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-700">
                 <tr>
+                  <th className="px-3 py-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allRowsSelected}
+                      onChange={toggleSelectAll}
+                      onClick={(e) => e.stopPropagation()}
+                      disabled={selectableSales.length === 0}
+                      aria-label="Select all invoices"
+                    />
+                  </th>
                   <th className="px-3 py-2 font-semibold">Invoice</th>
                   <th className="px-3 py-2 font-semibold">Date</th>
                   <th className="px-3 py-2 font-semibold">Customer</th>
                   <th className="px-3 py-2 font-semibold">Flat</th>
                   <th className="px-3 py-2 font-semibold text-right">Amount</th>
-                  <th className="px-3 py-2 font-semibold text-center">Actions</th>
+                  <th className="px-3 py-2 font-semibold text-center">Edit</th>
                 </tr>
               </thead>
               <tbody>
@@ -499,6 +576,15 @@ function Orders({ token }) {
                         active ? 'bg-green-100/60' : ''
                       }`}
                     >
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={inv._id ? selectedRowIds.has(String(inv._id)) : false}
+                          onChange={(e) => inv._id && toggleRowSelection(inv._id, e)}
+                          disabled={!inv._id}
+                          aria-label={`Select invoice ${id || ''}`}
+                        />
+                      </td>
                       <td className="px-3 py-2 font-medium">{id || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{formatWhen(inv)}</td>
                       <td className="px-3 py-2">{getCustomerName(inv) || '—'}</td>
@@ -511,16 +597,9 @@ function Orders({ token }) {
                         <button
                           type="button"
                           onClick={(e) => startEditInvoice(inv, e)}
-                          className="text-blue-600 hover:text-blue-800 font-medium mr-3"
+                          className="text-blue-600 hover:text-blue-800 font-medium"
                         >
                           Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => deleteInvoice(inv, e)}
-                          className="text-red-600 hover:text-red-800 font-medium"
-                        >
-                          Delete
                         </button>
                       </td>
                     </tr>
