@@ -15,6 +15,7 @@ function Add({ token }) {
   const [mainDescription, setMainDescription] = useState('')
   const [bestseller, setBestseller] = useState(false)
   const [quantityOptions, setQuantityOptions] = useState([{ label: '', price: '', originalPrice: '' }])
+  const [itemCount, setItemCount] = useState('')
 
   const onSubmitHandler = async (e) => {
     e.preventDefault()
@@ -33,6 +34,9 @@ function Add({ token }) {
         return entry
       })
       formData.append("quantityOptions", JSON.stringify(normalizedQuantityOptions))
+      if (itemCount !== '' && itemCount != null) {
+        formData.append("itemCount", Number(itemCount))
+      }
 
       // image1 && formData.append("image1", image1)
       // image2 && formData.append("image2", image2)
@@ -47,6 +51,7 @@ function Add({ token }) {
         setMainDescription('')
         setBestseller(false)
         setQuantityOptions([{ label: '', price: '', originalPrice: '' }])
+        setItemCount('')
         // setImage1(false)
         // setImage2(false)
         // setImage3(false)
@@ -141,6 +146,19 @@ function Add({ token }) {
           </div>
         ))}
         <button type='button' className='text-green-800 text-sm' onClick={() => setQuantityOptions([...quantityOptions, { label: '', price: '', originalPrice: '' }])}>+ Add More Options</button>
+      </div>
+
+      <div className='w-full'>
+        <p className='mb-2'>Item count</p>
+        <input
+          onChange={(e) => setItemCount(e.target.value)}
+          value={itemCount}
+          type="number"
+          placeholder='e.g. 10'
+          min="0"
+          step="1"
+          className='w-full max-w-[500px] px-3 py-2'
+        />
       </div>
 
       <div className='flex gap-2 mt-2'>

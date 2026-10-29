@@ -55,6 +55,9 @@ function List({ token }) {
         return entry;
       });
       formData.append('quantityOptions', JSON.stringify(normalizedQuantityOptions));
+      if (editingProduct.itemCount !== '' && editingProduct.itemCount != null) {
+        formData.append('itemCount', Number(editingProduct.itemCount));
+      }
 
       // append new images (if any)
       editingProduct.image1 && formData.append('image1', editingProduct.image1);
@@ -121,6 +124,7 @@ function List({ token }) {
               onClick={() =>
                 setEditingProduct({
                   ...item,
+                  itemCount: item.itemCount ?? '',
                   quantityOptions: (item.quantityOptions || []).map((opt) => ({
                     ...opt,
                     originalPrice: opt.originalPrice ?? '',
@@ -248,6 +252,19 @@ function List({ token }) {
               >
                 + Add More Options
               </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="mb-2">Item count</p>
+              <input
+                type="number"
+                value={editingProduct.itemCount ?? ''}
+                onChange={(e) => setEditingProduct({ ...editingProduct, itemCount: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+                placeholder="e.g. 10"
+                min="0"
+                step="1"
+              />
             </div>
 
             {/* Bestseller checkbox */}
