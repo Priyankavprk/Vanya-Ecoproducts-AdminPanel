@@ -1,4 +1,10 @@
-import { getInvoiceDiscount, getInvoiceId, getInvoiceItems, getInvoiceTotal } from './invoiceDisplay';
+import {
+  getInvoiceDiscount,
+  getInvoiceId,
+  getInvoiceItems,
+  getInvoiceShipping,
+  getInvoiceTotal,
+} from './invoiceDisplay';
 
 function normName(name) {
   return String(name ?? '').trim().toLowerCase();
@@ -144,7 +150,9 @@ export function analyzeInvoice(invoice, products, lookup) {
   const knownCost = items.reduce((sum, line) => sum + (line.cost ?? 0), 0);
   const allCostsKnown = items.length > 0 && items.every((line) => line.costKnown);
   const knownProfit = items.reduce((sum, line) => sum + (line.profit ?? 0), 0);
-  const revenue = getInvoiceTotal(invoice) || lineRevenue;
+  const shipping = getInvoiceShipping(invoice);
+  const grossTotal = getInvoiceTotal(invoice) || lineRevenue;
+  const revenue = Math.max(0, grossTotal - shipping);
   const discount = getInvoiceDiscount(invoice);
   const profit = allCostsKnown ? revenue - knownCost : knownProfit;
   const marginPct = revenue > 0 && profit != null ? (profit / revenue) * 100 : null;
@@ -154,6 +162,7 @@ export function analyzeInvoice(invoice, products, lookup) {
     invoice,
     items,
     revenue,
+    shipping,
     discount,
     cost: knownCost,
     costComplete: allCostsKnown,
@@ -168,6 +177,7 @@ export function analyzeSalesPeriod(invoices, products) {
   const rows = (invoices ?? []).map((inv) => analyzeInvoice(inv, products, lookup));
 
   const revenue = rows.reduce((sum, r) => sum + r.revenue, 0);
+  const shipping = rows.reduce((sum, r) => sum + (r.shipping ?? 0), 0);
   const cost = rows.reduce((sum, r) => sum + r.cost, 0);
   const partialProfit = rows.reduce((sum, r) => sum + (r.profit ?? 0), 0);
   const completeRows = rows.filter((r) => r.costComplete);
@@ -208,6 +218,7 @@ export function analyzeSalesPeriod(invoices, products) {
     summary: {
       invoiceCount: rows.length,
       revenue,
+      shipping,
       cost,
       profit,
       marginPct,

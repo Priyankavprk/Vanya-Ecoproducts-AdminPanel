@@ -89,6 +89,7 @@ function SalesHistory({ token }) {
         <h3 className="text-xl font-semibold mb-1 text-green-800">Sales history</h3>
         <p className="text-sm text-green-900/80">
           Profit is calculated from invoice selling prices vs product sourced prices (set when adding items).
+          Shipping charged to the customer is excluded from revenue.
         </p>
       </div>
 
@@ -123,7 +124,7 @@ function SalesHistory({ token }) {
         <div className="border border-gray-200 rounded-lg bg-white p-4">
           <p className="text-xs uppercase text-gray-600 tracking-wide">Revenue</p>
           <p className="text-lg font-semibold text-green-900 mt-1">{formatMoney(summary.revenue)}</p>
-          <p className="text-xs text-gray-500 mt-1">{summary.invoiceCount} invoices</p>
+          <p className="text-xs text-gray-500 mt-1">{summary.invoiceCount} invoices · shipping excluded</p>
         </div>
         <div className="border border-gray-200 rounded-lg bg-white p-4">
           <p className="text-xs uppercase text-gray-600 tracking-wide">Sourced cost</p>
@@ -141,6 +142,14 @@ function SalesHistory({ token }) {
         </div>
       </div>
 
+      <div className="border border-gray-200 rounded-lg bg-white p-4">
+        <p className="text-xs uppercase text-gray-600 tracking-wide">Total shipping charges</p>
+        <p className="text-lg font-semibold text-green-900 mt-1">{formatMoney(summary.shipping)}</p>
+        <p className="text-xs text-gray-500 mt-1">
+          Paid by the customer on these bills. Not included in revenue or profit.
+        </p>
+      </div>
+
       <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-green-800 mb-2">Invoices</p>
@@ -150,13 +159,14 @@ function SalesHistory({ token }) {
               <p className="p-6 text-sm text-gray-600">No sales in this period.</p>
             )}
             {!loading && rows.length > 0 && (
-              <table className="w-full text-sm text-left text-green-900 min-w-[720px]">
+              <table className="w-full text-sm text-left text-green-900 min-w-[800px]">
                 <thead className="bg-gray-100 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-700">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Invoice</th>
                     <th className="px-3 py-2 font-semibold">Date</th>
                     <th className="px-3 py-2 font-semibold">Customer</th>
                     <th className="px-3 py-2 font-semibold text-right">Revenue</th>
+                    <th className="px-3 py-2 font-semibold text-right">Shipping</th>
                     <th className="px-3 py-2 font-semibold text-right">Cost</th>
                     <th className="px-3 py-2 font-semibold text-right">Profit</th>
                     <th className="px-3 py-2 font-semibold text-right">Margin</th>
@@ -178,6 +188,7 @@ function SalesHistory({ token }) {
                         <td className="px-3 py-2 whitespace-nowrap">{formatWhen(inv)}</td>
                         <td className="px-3 py-2">{getCustomerName(inv) || '—'}</td>
                         <td className="px-3 py-2 text-right">{formatMoney(row.revenue)}</td>
+                        <td className="px-3 py-2 text-right">{formatMoney(row.shipping)}</td>
                         <td className="px-3 py-2 text-right">
                           {row.costComplete ? formatMoney(row.cost) : (
                             <span className="text-amber-700 text-xs">Partial</span>
@@ -222,6 +233,9 @@ function SalesHistory({ token }) {
                 </p>
                 <p>
                   <span className="text-gray-600">Flat:</span> {getFlatLabel(selectedRow.invoice) || '—'}
+                </p>
+                <p>
+                  <span className="text-gray-600">Shipping:</span> {formatMoney(selectedRow.shipping)}
                 </p>
                 <p>
                   <span className="text-gray-600">Profit:</span>{' '}

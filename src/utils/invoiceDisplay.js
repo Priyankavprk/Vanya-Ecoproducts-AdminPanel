@@ -73,6 +73,13 @@ export function getInvoiceDiscount(inv) {
   return Number.isFinite(num) ? num : 0;
 }
 
+export function getInvoiceShipping(inv) {
+  if (!inv) return 0;
+  const n = inv.shippingCharges ?? inv.shippingAmount ?? inv.shipping;
+  const num = Number(n);
+  return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
 export function getInvoiceItems(inv) {
   if (!inv) return [];
   const items =
