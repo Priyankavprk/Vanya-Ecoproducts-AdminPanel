@@ -92,19 +92,20 @@ function List({ token }) {
     <>
       <p className="mb-2 font-bold">All Products List</p>
       <div className="flex flex-col gap-2">
-        <div className="hidden md:grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr] items-center py-1 px-2 border bg-gray-100 text-sm">
+        <div className="hidden md:grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1.5fr_1fr_1fr_1fr] items-center py-1 px-2 border bg-gray-100 text-sm">
           <b className="text-left">Image</b>
           <b className="text-left">Name</b>
           <b className="text-center">Selling</b>
           <b className="text-center">Sourced</b>
           <b className="text-center">Item count</b>
+          <b className="text-center">Quantity</b>
           <b className="text-center">HSN</b>
           <b className="text-center">Actions</b>
         </div>
 
         {list.reverse().map((item, index) => (
           <div
-            className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr_1fr_1fr] items-center gap-2 py-1 px-2 border text-sm"
+            className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1.5fr_1fr_1fr_1fr] items-center gap-2 py-1 px-2 border text-sm"
             key={index}
           >
             <img className="w-12" src={item.image[0]} alt={item.name} />
@@ -119,6 +120,11 @@ function List({ token }) {
             </p>
             <p className="text-center font-medium">
               {item.itemCount != null && item.itemCount !== '' ? item.itemCount : '—'}
+            </p>
+            <p className="text-center font-medium">
+              {item.quantityOptions?.length
+                ? item.quantityOptions.map((opt) => opt.label).filter(Boolean).join(', ') || '—'
+                : '—'}
             </p>
             <p className="text-center font-medium">
               {item.hsnCode ? item.hsnCode : '—'}
