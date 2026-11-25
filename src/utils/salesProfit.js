@@ -1,4 +1,5 @@
 import {
+  getInvoiceBillType,
   getInvoiceDiscount,
   getInvoiceId,
   getInvoiceItems,
@@ -126,7 +127,7 @@ export function analyzeLineItem(item, products, lookup) {
     lookup,
     item.name,
     sellingUnit,
-    item.originalPrice
+    item.originalPrice ?? item.sourcedPrice
   );
   const costKnown = sourcedUnit != null;
   const cost = costKnown ? sourcedUnit * quantity : null;
@@ -159,6 +160,7 @@ export function analyzeInvoice(invoice, products, lookup) {
 
   return {
     invoiceId: getInvoiceId(invoice),
+    billType: getInvoiceBillType(invoice),
     invoice,
     items,
     revenue,

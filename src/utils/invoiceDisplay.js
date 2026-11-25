@@ -80,6 +80,21 @@ export function getInvoiceShipping(inv) {
   return Number.isFinite(num) && num > 0 ? num : 0;
 }
 
+export function getInvoiceBillType(inv) {
+  if (!inv) return 'retail';
+  const t = String(inv.billType ?? inv.type ?? '').trim().toLowerCase();
+  if (t === 'wholesale') return 'wholesale';
+  if (t === 'retail') return 'retail';
+  if (inv.sourcedTotal != null) return 'wholesale';
+  const first = getInvoiceItems(inv)[0];
+  if (first?.sourcedPrice != null && !inv.flatName) return 'wholesale';
+  return 'retail';
+}
+
+export function getInvoiceBillTypeLabel(inv) {
+  return getInvoiceBillType(inv) === 'wholesale' ? 'Wholesale' : 'Retail';
+}
+
 export function getInvoiceItems(inv) {
   if (!inv) return [];
   const items =
@@ -97,12 +112,16 @@ export function invoiceMatchesQuery(inv, q) {
   const email = String(inv.email ?? '').toLowerCase();
   const mobile = String(inv.mobile ?? '').toLowerCase();
   const flatNum = String(inv.flatNumber ?? '').toLowerCase();
+  const address = typeof inv.address === 'string' ? inv.address.toLowerCase() : '';
+  const billType = getInvoiceBillTypeLabel(inv).toLowerCase();
   return (
     id.includes(s) ||
     name.includes(s) ||
     flat.includes(s) ||
     email.includes(s) ||
     mobile.includes(s) ||
-    flatNum.includes(s)
+    flatNum.includes(s) ||
+    address.includes(s) ||
+    billType.includes(s)
   );
 }

@@ -5,6 +5,8 @@ import { toast } from 'react-toastify';
 import {
   getCustomerName,
   getFlatLabel,
+  getInvoiceBillType,
+  getInvoiceBillTypeLabel,
   getInvoiceDate,
   getInvoiceDiscount,
   getInvoiceId,
@@ -54,8 +56,15 @@ const PERIODS = [
   { key: 'all', label: 'All sales' },
 ];
 
+const BILL_TYPES = [
+  { key: 'all', label: 'All bills' },
+  { key: 'retail', label: 'Retail' },
+  { key: 'wholesale', label: 'Wholesale' },
+];
+
 function Orders({ token }) {
   const [salesPeriod, setSalesPeriod] = useState('today');
+  const [billTypeFilter, setBillTypeFilter] = useState('all');
   const [sales, setSales] = useState([]);
   const [salesLoading, setSalesLoading] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -78,7 +87,11 @@ function Orders({ token }) {
     setSummary(null);
     try {
       const response = await axios.get(
-        backendUrl + '/api/invoice/admin/sales?period=' + encodeURIComponent(salesPeriod),
+        backendUrl +
+          '/api/invoice/admin/sales?period=' +
+          encodeURIComponent(salesPeriod) +
+          '&billType=' +
+          encodeURIComponent(billTypeFilter),
         { headers: { token } }
       );
       if (response.data.success) {
@@ -101,7 +114,7 @@ function Orders({ token }) {
     } finally {
       setSalesLoading(false);
     }
-  }, [token, salesPeriod]);
+  }, [token, salesPeriod, billTypeFilter]);
 
   const runSearch = useCallback(
     async (query) => {
@@ -113,7 +126,11 @@ function Orders({ token }) {
       setSearchLoading(true);
       try {
         const response = await axios.get(
-          backendUrl + '/api/invoice/admin/search?query=' + encodeURIComponent(q),
+          backendUrl +
+            '/api/invoice/admin/search?query=' +
+            encodeURIComponent(q) +
+            '&billType=' +
+            encodeURIComponent(billTypeFilter),
           { headers: { token } }
         );
         if (response.data.success) {
@@ -125,7 +142,10 @@ function Orders({ token }) {
         }
       } catch (error) {
         console.log(error);
-        const local = sales.filter((inv) => invoiceMatchesQuery(inv, q));
+        const local = sales.filter((inv) => {
+          if (billTypeFilter !== 'all' && getInvoiceBillType(inv) !== billTypeFilter) return false;
+          return invoiceMatchesQuery(inv, q);
+        });
         if (local.length) {
           setSearchResults(local);
           toast.info('Using results from the current sales list; configure search API for full history.');
@@ -142,7 +162,7 @@ function Orders({ token }) {
         setSearchLoading(false);
       }
     },
-    [token, sales]
+    [token, sales, billTypeFilter]
   );
 
   useEffect(() => {
@@ -151,7 +171,7 @@ function Orders({ token }) {
 
   useEffect(() => {
     setSelectedRowIds(new Set());
-  }, [salesPeriod]);
+  }, [salesPeriod, billTypeFilter]);
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -189,6 +209,10 @@ function Orders({ token }) {
     e.stopPropagation();
     if (!inv?._id) {
       toast.error('Cannot edit: missing invoice id');
+      return;
+    }
+    if (getInvoiceBillType(inv) === 'wholesale') {
+      toast.info('Editing wholesale bills from admin is not available yet.');
       return;
     }
     let full = inv;
@@ -353,17 +377,33 @@ function Orders({ token }) {
       <div>
         <h3 className="text-xl font-semibold mb-1 text-green-800">Sales &amp; invoices</h3>
         <p className="text-sm text-green-900/80 mb-4">
-          Search by invoice id, customer name, or flat. Sales history defaults to today; switch period below.
+          Search by invoice id, customer name, or flat. Filter retail vs wholesale, then switch period below.
         </p>
 
         <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
           <div className="flex-1 space-y-3">
             <label className="block text-sm font-medium text-green-900">Find invoice</label>
+            <div className="flex flex-wrap gap-2">
+              {BILL_TYPES.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setBillTypeFilter(key)}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    billTypeFilter === key
+                      ? 'bg-green-800 text-white border-green-800'
+                      : 'bg-white text-green-900 border-gray-300 hover:border-green-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <input
               type="search"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Invoice id, customer name, or flat…"
+              placeholder="Invoice id, customer name, flat, or wholesale/retail…"
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-green-900 bg-white"
             />
             {searchInput.trim() && (
@@ -383,6 +423,7 @@ function Orders({ token }) {
                       className="w-full text-left px-3 py-2 text-sm border-b border-gray-100 hover:bg-green-50 text-green-900"
                     >
                       <span className="font-semibold">{getInvoiceId(inv) || '—'}</span>
+                      <span className="text-gray-600"> · {getInvoiceBillTypeLabel(inv)}</span>
                       <span className="text-gray-600"> · {getCustomerName(inv) || '—'}</span>
                       {getFlatLabel(inv) ? (
                         <span className="text-gray-600"> · {getFlatLabel(inv)}</span>
@@ -420,11 +461,22 @@ function Orders({ token }) {
                   <span className="font-semibold">{getInvoiceId(selectedInvoice)}</span>
                 </p>
                 <p>
-                  <span className="text-gray-600">Customer:</span> {getCustomerName(selectedInvoice) || '—'}
+                  <span className="text-gray-600">Type:</span> {getInvoiceBillTypeLabel(selectedInvoice)}
                 </p>
                 <p>
-                  <span className="text-gray-600">Flat / unit:</span> {getFlatLabel(selectedInvoice) || '—'}
+                  <span className="text-gray-600">Customer:</span> {getCustomerName(selectedInvoice) || '—'}
                 </p>
+                {getInvoiceBillType(selectedInvoice) === 'wholesale' ? (
+                  typeof selectedInvoice.address === 'string' && selectedInvoice.address ? (
+                    <p>
+                      <span className="text-gray-600">Address:</span> {selectedInvoice.address}
+                    </p>
+                  ) : null
+                ) : (
+                  <p>
+                    <span className="text-gray-600">Flat / unit:</span> {getFlatLabel(selectedInvoice) || '—'}
+                  </p>
+                )}
                 <p>
                   <span className="text-gray-600">When:</span> {formatWhen(selectedInvoice)}
                 </p>
@@ -455,15 +507,19 @@ function Orders({ token }) {
                       {getInvoiceItems(selectedInvoice).map((item, i) => {
                         const name = item.name ?? item.productName ?? item.title ?? 'Item';
                         const qty = item.quantity ?? item.qty ?? 1;
-                        const label = item.quantityLabel ?? item.label ?? item.unit ?? '';
+                        const label = item.quantityLabel ?? item.label ?? item.unit ?? item.displayQuantity ?? '';
                         const price = Number(item.price);
+                        const sourced = Number(item.sourcedPrice ?? item.originalPrice);
                         const pricePart = Number.isFinite(price) ? ` @ ${currency}${price}` : '';
+                        const sourcedPart =
+                          Number.isFinite(sourced) && sourced > 0 ? ` · sourced ${currency}${sourced}` : '';
                         return (
                           <li key={i}>
                             {name}{' '}
                             <span className="text-gray-600">
                               × {qty}
                               {pricePart}
+                              {sourcedPart}
                               {label ? ` ${label}` : ''}
                             </span>
                           </li>
@@ -472,7 +528,7 @@ function Orders({ token }) {
                     </ul>
                   </div>
                 )}
-                {(selectedInvoice.address || selectedInvoice.shippingAddress) && (
+                {selectedInvoice.address && typeof selectedInvoice.address === 'object' && (
                   <div className="mt-2 text-gray-700">
                     <p className="text-gray-600">Address</p>
                     {(() => {
@@ -504,6 +560,21 @@ function Orders({ token }) {
               onClick={() => setSalesPeriod(key)}
               className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
                 salesPeriod === key
+                  ? 'bg-green-800 text-white border-green-800'
+                  : 'bg-white text-green-900 border-gray-300 hover:border-green-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="text-sm font-medium text-green-900 ml-2 mr-1">Type</span>
+          {BILL_TYPES.map(({ key, label }) => (
+            <button
+              key={`table-${key}`}
+              type="button"
+              onClick={() => setBillTypeFilter(key)}
+              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                billTypeFilter === key
                   ? 'bg-green-800 text-white border-green-800'
                   : 'bg-white text-green-900 border-gray-300 hover:border-green-700'
               }`}
@@ -553,6 +624,7 @@ function Orders({ token }) {
                     />
                   </th>
                   <th className="px-3 py-2 font-semibold">Invoice</th>
+                  <th className="px-3 py-2 font-semibold">Type</th>
                   <th className="px-3 py-2 font-semibold">Date</th>
                   <th className="px-3 py-2 font-semibold">Customer</th>
                   <th className="px-3 py-2 font-semibold">Flat</th>
@@ -586,6 +658,7 @@ function Orders({ token }) {
                         />
                       </td>
                       <td className="px-3 py-2 font-medium">{id || '—'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{getInvoiceBillTypeLabel(inv)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{formatWhen(inv)}</td>
                       <td className="px-3 py-2">{getCustomerName(inv) || '—'}</td>
                       <td className="px-3 py-2">{getFlatLabel(inv) || '—'}</td>
@@ -594,13 +667,17 @@ function Orders({ token }) {
                         {getInvoiceTotal(inv).toFixed(2)}
                       </td>
                       <td className="px-3 py-2 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={(e) => startEditInvoice(inv, e)}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                          Edit
-                        </button>
+                        {getInvoiceBillType(inv) === 'wholesale' ? (
+                          <span className="text-gray-400">—</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => startEditInvoice(inv, e)}
+                            className="text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            Edit
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

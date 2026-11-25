@@ -2,7 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { backendUrl, currency } from '../App';
 import { toast } from 'react-toastify';
-import { getCustomerName, getFlatLabel, getInvoiceDate } from '../utils/invoiceDisplay';
+import {
+  getCustomerName,
+  getFlatLabel,
+  getInvoiceBillTypeLabel,
+  getInvoiceDate,
+} from '../utils/invoiceDisplay';
 import { analyzeSalesPeriod } from '../utils/salesProfit';
 
 const PERIODS = [
@@ -11,6 +16,12 @@ const PERIODS = [
   { key: 'month', label: 'This month' },
   { key: 'year', label: 'This year' },
   { key: 'all', label: 'All sales' },
+];
+
+const BILL_TYPES = [
+  { key: 'all', label: 'All bills' },
+  { key: 'retail', label: 'Retail' },
+  { key: 'wholesale', label: 'Wholesale' },
 ];
 
 function formatMoney(n) {
@@ -27,6 +38,7 @@ function formatPct(n) {
 
 function SalesHistory({ token }) {
   const [period, setPeriod] = useState('today');
+  const [billTypeFilter, setBillTypeFilter] = useState('all');
   const [invoices, setInvoices] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +51,11 @@ function SalesHistory({ token }) {
     try {
       const [salesRes, productsRes] = await Promise.all([
         axios.get(
-          backendUrl + '/api/invoice/admin/sales?period=' + encodeURIComponent(period),
+          backendUrl +
+            '/api/invoice/admin/sales?period=' +
+            encodeURIComponent(period) +
+            '&billType=' +
+            encodeURIComponent(billTypeFilter),
           { headers: { token } }
         ),
         axios.get(backendUrl + '/api/product/list'),
@@ -65,7 +81,7 @@ function SalesHistory({ token }) {
     } finally {
       setLoading(false);
     }
-  }, [token, period]);
+  }, [token, period, billTypeFilter]);
 
   useEffect(() => {
     fetchData();
@@ -88,7 +104,7 @@ function SalesHistory({ token }) {
       <div>
         <h3 className="text-xl font-semibold mb-1 text-green-800">Sales history</h3>
         <p className="text-sm text-green-900/80">
-          Profit is calculated from invoice selling prices vs product sourced prices (set when adding items).
+          Profit uses selling price vs sourced price. Wholesale bills use the sourced price entered on the bill.
           Shipping charged to the customer is excluded from revenue.
         </p>
       </div>
@@ -102,6 +118,21 @@ function SalesHistory({ token }) {
             onClick={() => setPeriod(key)}
             className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
               period === key
+                ? 'bg-green-800 text-white border-green-800'
+                : 'bg-white text-green-900 border-gray-300 hover:border-green-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="text-sm font-medium text-green-900 ml-2 mr-1">Type</span>
+        {BILL_TYPES.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setBillTypeFilter(key)}
+            className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+              billTypeFilter === key
                 ? 'bg-green-800 text-white border-green-800'
                 : 'bg-white text-green-900 border-gray-300 hover:border-green-700'
             }`}
@@ -163,6 +194,7 @@ function SalesHistory({ token }) {
                 <thead className="bg-gray-100 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-700">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Invoice</th>
+                    <th className="px-3 py-2 font-semibold">Type</th>
                     <th className="px-3 py-2 font-semibold">Date</th>
                     <th className="px-3 py-2 font-semibold">Customer</th>
                     <th className="px-3 py-2 font-semibold text-right">Revenue</th>
@@ -185,6 +217,7 @@ function SalesHistory({ token }) {
                         }`}
                       >
                         <td className="px-3 py-2 font-medium">{row.invoiceId || '—'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{getInvoiceBillTypeLabel(inv)}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{formatWhen(inv)}</td>
                         <td className="px-3 py-2">{getCustomerName(inv) || '—'}</td>
                         <td className="px-3 py-2 text-right">{formatMoney(row.revenue)}</td>
@@ -227,6 +260,9 @@ function SalesHistory({ token }) {
                 <p>
                   <span className="text-gray-600">Invoice:</span>{' '}
                   <span className="font-semibold">{selectedRow.invoiceId}</span>
+                </p>
+                <p>
+                  <span className="text-gray-600">Type:</span> {getInvoiceBillTypeLabel(selectedRow.invoice)}
                 </p>
                 <p>
                   <span className="text-gray-600">Customer:</span> {getCustomerName(selectedRow.invoice) || '—'}
